@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  image         String?
+  emailVerified DateTime?
+  role          Role      @default(USER)
+  createdAt     DateTime  @default(now())
+
+  stripeCustomerId String? @unique   // ✅ STRIPE
+
+  usages       Usage[]
+  apiKeys      ApiKey[]
+  apiUsages    ApiUsage[]
+  usageEvents  UsageEvent[]
+  accounts     Account[]
+  sessions     Session[]
+  subscription Subscription?
+}
+
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+//////////////////////////
+// ✅ PLANS & BILLING
+//////////////////////////
+
+model Plan {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  price        Int
+  interval     String
+  requestLimit Int
+  createdAt    DateTime @default(now())
+
+  subscriptions Subscription[]
+}
+
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  planId    String
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+
+  stripeSubscriptionId String?  @unique   // ✅ STRIPE
+  currentPeriodEnd     DateTime?           // ✅ STRIPE
+  cancelAtPeriodEnd    Boolean  @default(false) // ✅ STRIPE
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+}
+
+
+//////////////////////////
+// ✅ USAGE TRACKING
+//////////////////////////
+
+model ApiKey {
+  id           String    @id @default(cuid())
+  userId       String
+  encryptedKey String
+  last4        String
+  revokedAt    DateTime?
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usages    Usage[]
+  apiUsages ApiUsage[]
+
+  createdAt DateTime @default(now())
+}
+
+model Usage {
+  id       String   @id @default(cuid())
+  apiKeyId String
+  userId   String
+  date     DateTime @default(now())
+  count    Int      @default(0)
+
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([apiKeyId, date])
+}
+
+model ApiUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  apiKeyId  String
+  endpoint  String
+  units     Int
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+}
+
+model UsageEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  apiKeyId  String
+  endpoint  String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
