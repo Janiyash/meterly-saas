@@ -295,9 +295,10 @@ export default async function DashboardPage() {
         }
         .donut {
           width: 160px;
-          margin: auto;
-          padding-left: 280px;
+          margin: 0 auto;
+          display: block;
         }
+              
         .donut-bg {
           stroke: #1f2937;
           stroke-width: 3.8;
