@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { PLAN_CONFIG } from "@/lib/plan-config";    
+import { PLAN_CONFIG } from "@/lib/plan-config";
 
 export const runtime = "nodejs";
 
@@ -15,17 +15,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // ✅ FIX: strongly type request body
+    const body = (await req.json()) as {
+      razorpay_order_id?: string;
+      razorpay_payment_id?: string;
+      razorpay_signature?: string;
+      plan?: keyof typeof PLAN_CONFIG;
+    };
+
     const {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
       plan,
-    } = await req.json();
+    } = body;
 
     if (
       !razorpay_order_id ||
       !razorpay_payment_id ||
       !razorpay_signature ||
+      !plan ||
       !PLAN_CONFIG[plan]
     ) {
       return NextResponse.json(
@@ -47,7 +56,7 @@ export async function POST(req: Request) {
       );
     }
 
-    /* 🔥 GET PLAN ID FROM DB (CRITICAL FIX) */
+    /* 🔥 GET PLAN ID FROM DB */
     const planRecord = await prisma.plan.findUnique({
       where: { name: plan },
     });
@@ -59,7 +68,7 @@ export async function POST(req: Request) {
       );
     }
 
-    /* ✅ UPSERT SUBSCRIPTION WITH planId */
+    /* ✅ UPSERT SUBSCRIPTION */
     await prisma.subscription.upsert({
       where: { userId: session.user.id },
       update: {
