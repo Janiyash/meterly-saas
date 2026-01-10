@@ -1,8 +1,12 @@
-export {};
+import NextAuth from "next-auth";
 
-declare global {
-  interface Window {
-    __USER_ID__?: string;
-    Razorpay: any;
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      email?: string | null;
+      name?: string | null;
+      image?: string | null;
+    };
   }
 }

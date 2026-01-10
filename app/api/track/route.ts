@@ -14,7 +14,6 @@ export async function POST(req: Request) {
     }
 
     const rawKey = authHeader.replace("Bearer ", "").trim();
-
     const apiKey = await validateApiKey(rawKey);
 
     if (!apiKey) {
@@ -24,24 +23,37 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ Track usage (NO lastUsedAt here)
-    await prisma.apiUsage.upsert({
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 🔧 FIX: replace upsert (invalid) with find + update/create
+    const existing = await prisma.apiUsage.findFirst({
       where: {
-        userId_date: {
-          userId: apiKey.userId,
-          date: new Date(new Date().setHours(0, 0, 0, 0)),
-        },
-      },
-      update: {
-        count: { increment: 1 },
-      },
-      create: {
         userId: apiKey.userId,
         apiKeyId: apiKey.id,
-        date: new Date(new Date().setHours(0, 0, 0, 0)),
-        count: 1,
+        createdAt: {
+          gte: today,
+        },
       },
     });
+
+    if (existing) {
+      await prisma.apiUsage.update({
+        where: { id: existing.id },
+        data: {
+          units: { increment: 1 },
+        },
+      });
+    } else {
+      await prisma.apiUsage.create({
+        data: {
+          userId: apiKey.userId,
+          apiKeyId: apiKey.id,
+          endpoint: "track",
+          units: 1,
+        },
+      });
+    }
 
     return NextResponse.json({
       success: true,

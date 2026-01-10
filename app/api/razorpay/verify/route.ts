@@ -1,11 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import Razorpay from "razorpay";
-
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
-});
+import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -14,38 +9,61 @@ export async function POST(req: Request) {
     razorpay_order_id,
     razorpay_payment_id,
     razorpay_signature,
+    plan,
+    userId,
   } = body;
 
-  // ✅ VERIFY SIGNATURE
-  const generated = crypto
+  /* =========================
+     VALIDATION (IMPORTANT)
+  ========================= */
+  if (
+    !razorpay_order_id ||
+    !razorpay_payment_id ||
+    !razorpay_signature ||
+    !userId ||
+    !plan
+  ) {
+    return NextResponse.json(
+      { error: "Missing required fields" },
+      { status: 400 }
+    );
+  }
+
+  // ✅ FORCE plan to string (FIX)
+  const planName = String(plan);
+
+  /* =========================
+     VERIFY SIGNATURE
+  ========================= */
+  const generatedSignature = crypto
     .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
     .update(`${razorpay_order_id}|${razorpay_payment_id}`)
     .digest("hex");
 
-  if (generated !== razorpay_signature) {
-    return new Response("Invalid signature", { status: 400 });
+  if (generatedSignature !== razorpay_signature) {
+    return NextResponse.json(
+      { error: "Invalid signature" },
+      { status: 400 }
+    );
   }
 
-  // ✅ FETCH ORDER TO GET userId + plan
-  const order = await razorpay.orders.fetch(razorpay_order_id);
-
-  const userId = order.notes?.userId;
-  const plan = order.notes?.plan;
-
-  if (!userId || !plan) {
-    return new Response("Invalid order metadata", { status: 400 });
-  }
-
-  // ✅ FIND PLAN
+  /* =========================
+     FIND PLAN (FIXED)
+  ========================= */
   const planRecord = await prisma.plan.findUnique({
-    where: { name: plan },
+    where: { name: planName }, // ✅ always string now
   });
 
   if (!planRecord) {
-    return new Response("Plan not found", { status: 404 });
+    return NextResponse.json(
+      { error: "Plan not found" },
+      { status: 404 }
+    );
   }
 
-  // ✅ UPDATE SUBSCRIPTION (THIS NOW WORKS)
+  /* =========================
+     UPSERT SUBSCRIPTION
+  ========================= */
   await prisma.subscription.upsert({
     where: { userId },
     update: {
@@ -59,5 +77,5 @@ export async function POST(req: Request) {
     },
   });
 
-  return Response.json({ success: true });
+  return NextResponse.json({ success: true });
 }

@@ -24,10 +24,11 @@ export async function checkRateLimit(
 
   const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
 
+  // ✅ FIX: use `date` (exists in Usage model)
   const count = await prisma.usage.count({
     where: {
       apiKeyId,
-      createdAt: {
+      date: {
         gte: oneMinuteAgo,
       },
     },

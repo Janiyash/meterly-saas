@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
 
-export async function trackUsage(apiKeyId: string) {
+export async function trackUsage(apiKeyId: string, userId: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  await prisma.apiUsage.upsert({
+  await prisma.usage.upsert({
     where: {
       apiKeyId_date: {
         apiKeyId,
@@ -16,6 +16,7 @@ export async function trackUsage(apiKeyId: string) {
     },
     create: {
       apiKeyId,
+      userId,
       date: today,
       count: 1,
     },

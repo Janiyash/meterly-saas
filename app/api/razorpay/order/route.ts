@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     currency: "INR",
     receipt: `receipt_${Date.now()}`,
     notes: {
-      userId: session.user.id, // ✅ SOURCE OF TRUTH
+      userId: session.user.id,
       plan,
     },
   });

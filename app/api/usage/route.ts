@@ -2,17 +2,21 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
+import { NextResponse } from "next/server";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
-    return new Response("Unauthorized", { status: 401 });
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
   }
 
   const userId = session.user.id;
 
-  // 🔹 get subscription
+  // 🔹 subscription
   const subscription = await prisma.subscription.findFirst({
     where: { userId, status: "ACTIVE" },
     include: { plan: true },
@@ -27,31 +31,27 @@ export async function GET() {
   monthStart.setHours(0, 0, 0, 0);
 
   // 🔹 usage per API key
-  const usage = await prisma.apiKey.findMany({
+  const keys = await prisma.apiKey.findMany({
     where: { userId },
     select: {
       id: true,
-      name: true,
-      createdAt: true,
-      _count: {
-        select: {
-          usage: {
-            where: {
-              createdAt: { gte: monthStart },
-            },
-          },
-        },
+      last4: true,
+      usages: {
+        where: { date: { gte: monthStart } },
+        select: { count: true },
       },
     },
   });
 
-  return Response.json({
+  const formattedKeys = keys.map((k) => ({
+    id: k.id,
+    name: `**** **** **** ${k.last4}`,
+    used: k.usages.reduce((s, u) => s + u.count, 0),
+  }));
+
+  return NextResponse.json({
     plan: planName,
     limit,
-    keys: usage.map((k) => ({
-      id: k.id,
-      name: k.name,
-      used: k._count.usage,
-    })),
+    keys: formattedKeys,
   });
 }

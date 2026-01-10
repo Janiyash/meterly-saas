@@ -11,7 +11,7 @@ export async function ensureFreeSubscription(
     create: {
       id: userId,
       email,
-      role: "USER", // ✅ NOW VALID
+      role: "USER",
     },
   });
 
@@ -26,6 +26,7 @@ export async function ensureFreeSubscription(
         name: "FREE",
         price: 0,
         interval: "monthly",
+        requestLimit: 1000, // ✅ FIX (required by schema)
       },
     });
   }
@@ -34,7 +35,7 @@ export async function ensureFreeSubscription(
   const subscription = await prisma.subscription.findFirst({
     where: {
       userId,
-      status: "active",
+      status: "ACTIVE", // matches schema default
     },
   });
 
@@ -43,7 +44,7 @@ export async function ensureFreeSubscription(
       data: {
         userId,
         planId: freePlan.id,
-        status: "active",
+        status: "ACTIVE",
       },
     });
   }

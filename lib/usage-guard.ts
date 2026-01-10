@@ -1,4 +1,4 @@
-import { PLAN_LIMITS } from "./plans";
+import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { prisma } from "@/lib/prisma";
 
 function getStartOfMonth() {
@@ -30,7 +30,7 @@ export async function checkAndConsumeUsage(
     const usageCount = await tx.usage.count({
       where: {
         userId,
-        createdAt: { gte: monthStart },
+        date: { gte: monthStart }, // ✅ FIXED
       },
     });
 

@@ -4,8 +4,13 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer "))
-    return NextResponse.json({ error: "Missing key" }, { status: 401 });
+
+  if (!auth?.startsWith("Bearer ")) {
+    return NextResponse.json(
+      { error: "Missing key" },
+      { status: 401 }
+    );
+  }
 
   const rawKey = auth.replace("Bearer ", "");
 
@@ -14,26 +19,26 @@ export async function POST(req: Request) {
   });
 
   const apiKey = apiKeys.find(
-    (k) => decrypt(k.encryptedKey) === rawKey
+    (k) => decrypt(k.encryptedKey).toString() === rawKey
   );
 
-  if (!apiKey)
-    return NextResponse.json({ error: "Invalid key" }, { status: 401 });
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "Invalid key" },
+      { status: 401 }
+    );
+  }
 
-  // Update last used
-  await prisma.apiKey.update({
-    where: { id: apiKey.id },
-    data: { lastUsedAt: new Date() },
-  });
-
-  // Increment USER usage (not key-based)
+  /* =========================
+     INCREMENT USER USAGE
+  ========================= */
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  await prisma.apiUsage.upsert({
+  await prisma.usage.upsert({
     where: {
-      userId_date: {
-        userId: apiKey.userId,
+      apiKeyId_date: {
+        apiKeyId: apiKey.id,
         date: today,
       },
     },
@@ -41,10 +46,10 @@ export async function POST(req: Request) {
       count: { increment: 1 },
     },
     create: {
-      userId: apiKey.userId,
       apiKeyId: apiKey.id,
-      count: 1,
+      userId: apiKey.userId,
       date: today,
+      count: 1,
     },
   });
 

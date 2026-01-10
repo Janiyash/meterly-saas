@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-const SECRET = process.env.API_KEY_SECRET;
+const SECRET = process.env.API_KEY_SECRET as string;
 
 // 🔐 HARD FAIL if secret is wrong
 if (!SECRET) {
@@ -36,7 +36,7 @@ export function encrypt(text: string) {
 }
 
 /* =========================
-   DECRYPT
+   DECRYPT  ✅ FIXED
 ========================= */
 export function decrypt(payload: string) {
   const [ivHex, encryptedHex] = payload.split(":");
@@ -50,7 +50,8 @@ export function decrypt(payload: string) {
     iv
   );
 
-  let decrypted = decipher.update(encrypted, "hex", "utf8");
+  // ✅ FIX: force string output
+  let decrypted = decipher.update(encrypted, undefined, "utf8");
   decrypted += decipher.final("utf8");
 
   return decrypted;

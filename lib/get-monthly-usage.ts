@@ -6,16 +6,14 @@ export async function getMonthlyUsage(userId: string) {
   startOfMonth.setHours(0, 0, 0, 0);
 
   const result = await prisma.apiUsage.aggregate({
-    _sum: { count: true },
+    _sum: { units: true },
     where: {
-      apiKey: {
-        userId,
-      },
-      date: {
+      userId,
+      createdAt: {
         gte: startOfMonth,
       },
     },
   });
 
-  return result._sum.count ?? 0;
+  return result._sum.units ?? 0;
 }

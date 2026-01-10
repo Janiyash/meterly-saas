@@ -1,117 +1,127 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import ApiKeyCard from "./ApiKeyCard";
+import { useState } from "react";
 
-type ApiKey = {
-  id: string;
-  name: string | null;
-  createdAt: string;
-  lastUsedAt: string | null;
-  revokedAt: string | null;
+type ApiKeyObject = {
+  encryptedKey?: string;
+  last4?: string;
 };
 
-export default function ApiKeysPage() {
-  const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [newKey, setNewKey] = useState<string | null>(null);
+type ApiKeyInput = string | ApiKeyObject;
 
-  async function fetchKeys() {
-    setLoading(true);
-    const res = await fetch("/api/api-keys");
-    const data = await res.json();
-    setKeys(data);
-    setLoading(false);
-  }
+export default function ApiKeyCard({ apiKey }: { apiKey: ApiKeyInput }) {
+  const [visible, setVisible] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  async function createKey() {
-    const name = prompt("API key name (e.g. Production)");
-    if (!name) return;
+  // ✅ SAFE normalization
+  const resolvedKey =
+    typeof apiKey === "string"
+      ? apiKey
+      : apiKey.encryptedKey
+      ? apiKey.encryptedKey
+      : `**** **** **** ${apiKey.last4 ?? ""}`;
 
-    const res = await fetch("/api/api-keys", {
-      method: "POST",
-      body: JSON.stringify({ name }),
-    });
+  const maskedKey = resolvedKey.replace(/.(?=.{4})/g, "•");
 
-    const data = await res.json();
-    setNewKey(data.apiKey); // show only once
-    fetchKeys();
-  }
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(resolvedKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
-  async function revokeKey(id: string) {
-    if (!confirm("Revoke this API key?")) return;
-
-    await fetch("/api/api-keys", {
-      method: "DELETE",
-      body: JSON.stringify({ id }),
-    });
-
-    fetchKeys();
-  }
-
-  useEffect(() => {
-    fetchKeys();
-  }, []);
+  const handleRegenerate = () => {
+    alert("Later this will regenerate API key via backend");
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">API Keys</h1>
+    <div className="card">
+      <div className="card-header">
+        <strong>Your API Key</strong>
+      </div>
+
+      <div className="key-box">
+        <code>{visible ? resolvedKey : maskedKey}</code>
+
         <button
-          onClick={createKey}
-          className="rounded-md bg-white px-4 py-2 text-black font-medium"
+          className="icon-btn"
+          onClick={() => setVisible(!visible)}
+          title="Show / Hide"
         >
-          Generate Key
+          {visible ? "🙈" : "👁"}
+        </button>
+
+        <button className="icon-btn" onClick={handleCopy} title="Copy">
+          📋
         </button>
       </div>
 
-      {loading && <p className="text-gray-400">Loading...</p>}
+      {copied && <p className="copied">Copied to clipboard</p>}
 
-      {!loading && keys.length === 0 && (
-        <p className="text-gray-400">No API keys created yet.</p>
-      )}
+      <button className="regen-btn" onClick={handleRegenerate}>
+        Regenerate API Key
+      </button>
 
-      <div className="grid gap-4">
-        {keys.map((key) => (
-          <ApiKeyCard
-            key={key.id}
-            apiKey={key}
-            onRevoke={() => revokeKey(key.id)}
-          />
-        ))}
-      </div>
-
-      {/* COPY MODAL (SHOW ONLY ONCE) */}
-      {newKey && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center">
-          <div className="bg-neutral-900 p-6 rounded-lg w-full max-w-md space-y-4">
-            <h2 className="text-lg font-semibold">New API Key</h2>
-
-            <p className="text-sm text-yellow-400">
-              Copy this key now. You won’t see it again.
-            </p>
-
-            <div className="flex items-center gap-2">
-              <code className="flex-1 bg-black p-2 rounded text-sm overflow-x-auto">
-                {newKey}
-              </code>
-              <button
-                onClick={() => navigator.clipboard.writeText(newKey)}
-                className="px-3 py-2 bg-white text-black rounded"
-              >
-                Copy
-              </button>
-            </div>
-
-            <button
-              onClick={() => setNewKey(null)}
-              className="w-full bg-neutral-800 py-2 rounded"
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      )}
+      {/* STYLES UNCHANGED */}
+      <style>{`
+        .card {
+          background: radial-gradient(circle at top, #151515, #0b0b0b);
+          border: 1px solid #222;
+          border-radius: 16px;
+          padding: 24px;
+          max-width: 700px;
+        }
+        .card-header {
+          margin-bottom: 12px;
+          font-size: 15px;
+          color: #d1d5db;
+        }
+        .key-box {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: #000;
+          border: 1px solid #333;
+          padding: 14px;
+          border-radius: 10px;
+          overflow-x: auto;
+        }
+        code {
+          flex: 1;
+          font-size: 14px;
+          color: #22c55e;
+          white-space: nowrap;
+        }
+        .icon-btn {
+          background: transparent;
+          border: none;
+          color: white;
+          cursor: pointer;
+          font-size: 18px;
+        }
+        .icon-btn:hover {
+          opacity: 0.7;
+        }
+        .copied {
+          margin-top: 10px;
+          color: #22c55e;
+          font-size: 13px;
+        }
+        .regen-btn {
+          margin-top: 18px;
+          padding: 12px 18px;
+          border-radius: 10px;
+          border: 1px solid #ef4444;
+          background: transparent;
+          color: #ef4444;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+        .regen-btn:hover {
+          background: #ef4444;
+          color: white;
+        }
+      `}</style>
     </div>
   );
 }
