@@ -12,9 +12,11 @@ const razorpay = new Razorpay({
 
 export async function POST(req: Request) {
   try {
-    const { plan } = await req.json();
+      const body = (await req.json()) as { plan: keyof typeof PLAN_CONFIG };
+      const plan = body.plan;
+        
+      if (!PLAN_CONFIG[plan]) {
 
-    if (!PLAN_CONFIG[plan]) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
 
