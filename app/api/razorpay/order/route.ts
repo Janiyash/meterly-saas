@@ -1,33 +1,37 @@
+// app/api/razorpay/order/route.ts
+import Razorpay from "razorpay";
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { razorpay } from "@/lib/razorpay";
 import { PLAN_CONFIG } from "@/lib/plan-config";
 
 export const runtime = "nodejs";
 
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID!,
+  key_secret: process.env.RAZORPAY_KEY_SECRET!,
+});
+
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const { plan } = await req.json();
+
+    if (!PLAN_CONFIG[plan]) {
+      return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+    }
+
+    const price = PLAN_CONFIG[plan].price;
+
+    const order = await razorpay.orders.create({
+      amount: price * 100,
+      currency: "INR",
+      receipt: `receipt_${plan}_${Date.now()}`,
+    });
+
+    return NextResponse.json(order);
+  } catch (err) {
+    console.error("ORDER ERROR:", err);
+    return NextResponse.json(
+      { error: "Order creation failed" },
+      { status: 500 }
+    );
   }
-
-  const { plan } = await req.json();
-
-  const planConfig = PLAN_CONFIG[plan as keyof typeof PLAN_CONFIG];
-  if (!planConfig) {
-    return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
-  }
-
-  const order = await razorpay.orders.create({
-    amount: planConfig.price * 100,
-    currency: "INR",
-    receipt: `receipt_${Date.now()}`,
-    notes: {
-      userId: session.user.id,
-      plan,
-    },
-  });
-
-  return NextResponse.json(order);
 }

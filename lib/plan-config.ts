@@ -12,3 +12,4 @@ export const PLAN_CONFIG = {
     requests: Infinity,
   },
 } as const;
+export type PlanName = keyof typeof PLAN_CONFIG;
