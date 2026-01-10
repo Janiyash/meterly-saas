@@ -1,62 +1,92 @@
-import { prisma } from "@/lib/prisma";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
+import { prisma } from "@/lib/prisma";
 
-export async function checkAndConsumeUsage({
-  userId,
-  apiKeyId,
-  endpoint,
-  units = 1,
-}: {
-  userId: string;
-  apiKeyId: string;
-  endpoint: string;
-  units?: number;
-}) {
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
+function getStartOfMonth() {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
-  /* 1️⃣ Get user plan */
-  const subscription = await prisma.subscription.findFirst({
-    where: { userId, status: "ACTIVE" },
-    include: { plan: true },
-  });
+export async function checkAndConsumeUsage(
+  userId: string,
+  apiKeyId: string,
+  planName: keyof typeof PLAN_LIMITS
+) {
+  const limit = PLAN_LIMITS[planName];
 
-  const planName = subscription?.plan?.name ?? "FREE";
-  const limit = PLAN_LIMITS[planName as keyof typeof PLAN_LIMITS];
-
-  /* 2️⃣ Upsert usage safely */
-  const usage = await prisma.usage.upsert({
-    where: {
-      apiKeyId_date: {
-        apiKeyId,
-        date: monthStart,
+  // ENTERPRISE = unlimited
+  if (limit === Infinity) {
+    await prisma.usage.upsert({
+      where: {
+        apiKeyId_date: {
+          apiKeyId,
+          date: new Date(new Date().setHours(0, 0, 0, 0)),
+        },
       },
-    },
-    update: {
-      count: { increment: units },
-    },
-    create: {
-      apiKeyId,
-      userId,
-      date: monthStart,
-      count: units,
-    },
-  });
+      update: { count: { increment: 1 } },
+      create: {
+        apiKeyId,
+        userId,
+        date: new Date(new Date().setHours(0, 0, 0, 0)),
+        count: 1,
+      },
+    });
 
-  /* 3️⃣ Enforce limit */
-  if (limit !== Infinity && usage.count > limit) {
-    throw new Error("USAGE_LIMIT_EXCEEDED");
+    return null;
   }
 
-  /* 4️⃣ Store usage event (analytics) */
-  await prisma.usageEvent.create({
-    data: {
-      userId,
-      apiKeyId,
-      endpoint,
-    },
+  const monthStart = getStartOfMonth();
+
+  const result = await prisma.$transaction(async (tx) => {
+    // ✅ SUM usage.count (THIS WAS MISSING)
+    const usageAgg = await tx.usage.aggregate({
+      where: {
+        userId,
+        date: { gte: monthStart },
+      },
+      _sum: { count: true },
+    });
+
+    const used = usageAgg._sum.count ?? 0;
+
+    if (used >= limit) {
+      return "QUOTA_EXCEEDED";
+    }
+
+    // ✅ Increment today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    await tx.usage.upsert({
+      where: {
+        apiKeyId_date: {
+          apiKeyId,
+          date: today,
+        },
+      },
+      update: { count: { increment: 1 } },
+      create: {
+        apiKeyId,
+        userId,
+        date: today,
+        count: 1,
+      },
+    });
+
+    return "OK";
   });
 
-  return usage;
+  if (result === "QUOTA_EXCEEDED") {
+    return new Response(
+      JSON.stringify({
+        error: "Monthly quota exceeded",
+        plan: planName,
+        limit,
+      }),
+      { status: 429 }
+    );
+  }
+
+  return null;
 }
