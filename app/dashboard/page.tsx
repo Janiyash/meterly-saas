@@ -127,11 +127,9 @@ export default async function DashboardPage() {
             />
           </div>
 
-          {planName !== "ENTERPRISE" && (
-   
-            <RazorpayButton />
+  {planName === "FREE" && <RazorpayButton plan="PRO" />}
+  {planName === "PRO" && <RazorpayButton plan="ENTERPRISE" />}
 
-          )}
         </div>
 
         {/* USAGE DISTRIBUTION */}
@@ -284,6 +282,7 @@ export default async function DashboardPage() {
           border: 1px solid #222;
           border-radius: 14px;
           padding: 20px;
+          
         }
         .muted {
           color: #9ca3af;
@@ -297,6 +296,7 @@ export default async function DashboardPage() {
         .donut {
           width: 160px;
           margin: auto;
+          padding-left: 280px;
         }
         .donut-bg {
           stroke: #1f2937;
@@ -350,6 +350,12 @@ export default async function DashboardPage() {
           cursor: pointer;
         }
       `}</style>
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `window.__USER_ID__ = "${session.user.id}";`,
+        }}
+      />
+
     </main>
   );
 }

@@ -11,9 +11,6 @@ export default function ApiKeysPage() {
     type: "success" | "danger";
   } | null>(null);
 
-  /* ===============================
-     HELPERS
-  =============================== */
   function showToast(message: string, type: "success" | "danger") {
     setToast({ message, type });
     setTimeout(() => setToast(null), 2200);
@@ -43,11 +40,9 @@ export default function ApiKeysPage() {
 
   async function regenerateKey() {
     if (!confirm("Regenerate API key? Old key will stop working.")) return;
-
     setLoading(true);
     const res = await fetch("/api/api-keys", { method: "PUT" });
     const data = await res.json();
-
     setApiKey(data.apiKey);
     setShow(true);
     setLoading(false);
@@ -59,174 +54,158 @@ export default function ApiKeysPage() {
   }, []);
 
   return (
-      <div className="p-8 text-white">
+    <div className="api-page">
+      {/* PAGE HEADER */}
+      <div className="page-header">
+        <h1>API Keys</h1>
+        <p>Manage and secure your API credentials</p>
+      </div>
 
-      {/* API KEY CARD */}
-      <div className="bg-[#0b0b0b] border border-[#222] rounded-2xl p-6 max-w-xl">
-        <p className="text-sm text-gray-400 mb-2">Your API Key</p>
+      {/* CARD */}
+      <div className="key-card">
+        <p className="label">Your API Key</p>
 
-        <div className="flex items-center justify-between bg-black border border-[#222] rounded-xl px-4 py-3">
-          <span className="text-green-500 font-mono break-all">
+        <div className="key-box">
+          <span className="key-text">
             {show ? apiKey : maskedKey(apiKey)}
           </span>
 
-          <div className="flex gap-2">
-            <button
-              onClick={toggleView}
-              className="px-3 py-1 text-sm border border-[#333] rounded-lg hover:bg-[#111]"
-            >
+          <div className="actions">
+            <button onClick={toggleView}>
               {show ? "Hide" : "Show"}
             </button>
-
-            <button
-              onClick={copyKey}
-              className="px-3 py-1 text-sm border border-[#333] rounded-lg hover:bg-[#111]"
-            >
-              Copy
-            </button>
+            <button onClick={copyKey}>Copy</button>
           </div>
         </div>
+
+        <div className="divider" />
 
         <button
           onClick={regenerateKey}
           disabled={loading}
-          className="mt-4 px-4 py-2 rounded-lg border border-red-800 text-red-400 hover:bg-red-900/20 transition"
+          className="regen-btn"
         >
           {loading ? "Generating..." : "Regenerate API Key"}
         </button>
 
         {toast && (
-          <div
-            className={`mt-4 px-4 py-2 rounded-lg text-sm ${
-              toast.type === "success"
-                ? "border border-green-600 text-green-400 bg-green-500/10"
-                : "border border-red-700 text-red-400 bg-red-500/10"
-            }`}
-          >
+          <div className={`inline-toast ${toast.type}`}>
             {toast.message}
           </div>
         )}
       </div>
-    </div>
-  );
-}
 
-      {/* ===============================
-         CSS (SAME STYLE + BUTTON GROUP)
-      =============================== */}
+      {/* CSS */}
       <style>{`
         .api-page {
-          padding: 60px;
+          padding: 30px 40px;
           color: white;
-          max-width: 1000px;
+          max-width: 1100px;
         }
 
-        .header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 40px;
+        /* HEADER */
+        .page-header {
+          margin-bottom: 20px;
         }
 
-        h1 {
-          font-size: 32px;
-          margin-bottom: 6px;
+        .page-header h1 {
+          font-size: 30px;
+          margin-bottom: 4px;
         }
 
-        .subtext {
+        .page-header p {
           color: #9ca3af;
+          font-size: 15px;
         }
 
-        .header-actions {
-          display: flex;
-          gap: 12px;
-        }
-
-        .header-btn {
-          padding: 10px 16px;
-          border-radius: 10px;
-          font-size: 14px;
-          font-weight: 500;
-          color: #e5e7eb;
-          background: #0b0b0b;
-          border: 1px solid #222;
-          transition: all 0.2s;
-        }
-
-        .header-btn:hover {
-          background: #111;
-        }
-
-        .header-btn.active {
-          background: #16a34a;
-          border-color: #16a34a;
-          color: white;
-        }
-
+        /* CARD */
         .key-card {
-          background: #0b0b0b;
+          background: linear-gradient(180deg, #0d0d0d, #090909);
           border: 1px solid #222;
-          border-radius: 18px;
-          padding: 26px;
-          max-width: 560px;
+          border-radius: 20px;
+          padding: 28px;
+          max-width: 620px;
+          box-shadow: 0 0 0 1px rgba(34,197,94,0.05),
+                      0 20px 40px rgba(0,0,0,0.6);
         }
 
         .label {
           font-size: 14px;
           color: #9ca3af;
-          margin-bottom: 10px;
+          margin-bottom: 12px;
         }
 
         .key-box {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          background: black;
-          padding: 14px 16px;
-          border-radius: 12px;
+          background: #000;
+          padding: 16px 18px;
+          border-radius: 14px;
           border: 1px solid #222;
         }
 
         .key-text {
           color: #22c55e;
           font-family: monospace;
+          font-size: 15px;
           word-break: break-all;
         }
 
+        .actions {
+          display: flex;
+          gap: 8px;
+        }
+
         .actions button {
-          background: transparent;
+          background: #0b0b0b;
           border: 1px solid #333;
           color: #e5e7eb;
-          padding: 6px 12px;
-          border-radius: 8px;
-          margin-left: 8px;
+          padding: 6px 14px;
+          border-radius: 10px;
           cursor: pointer;
+          transition: all 0.15s ease;
         }
 
         .actions button:hover {
           background: #111;
+          border-color: #444;
+        }
+
+        .divider {
+          height: 1px;
+          background: #222;
+          margin: 22px 0;
         }
 
         .regen-btn {
-          margin-top: 18px;
+          width: 100%;
           border: 1px solid #7f1d1d;
           color: #f87171;
-          padding: 10px 16px;
-          border-radius: 10px;
+          padding: 12px 16px;
+          border-radius: 12px;
           background: transparent;
           cursor: pointer;
+          font-weight: 500;
+          transition: all 0.15s ease;
         }
 
         .regen-btn:hover {
-          background: rgba(127,29,29,0.15);
+          background: rgba(127,29,29,0.18);
         }
 
+        .regen-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        /* TOAST */
         .inline-toast {
-          margin-top: 16px;
-          padding: 10px 14px;
-          border-radius: 10px;
+          margin-top: 18px;
+          padding: 12px 16px;
+          border-radius: 12px;
           font-size: 14px;
-          animation: slideFade 0.3s ease;
+          animation: slideFade 0.25s ease;
         }
 
         .inline-toast.success {
@@ -252,3 +231,6 @@ export default function ApiKeysPage() {
           }
         }
       `}</style>
+    </div>
+  );
+}
