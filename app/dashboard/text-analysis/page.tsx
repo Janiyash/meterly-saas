@@ -14,6 +14,7 @@ export default function TextAnalysisPage() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [usageToast, setUsageToast] = useState(false);
+  const [limitToast, setLimitToast] = useState(false);
 
   async function handleAnalyze() {
     if (!text.trim()) return;
@@ -30,11 +31,19 @@ export default function TextAnalysisPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Analysis failed");
+
+      if (res.status === 429) {
+        setLimitToast(true);
+        setTimeout(() => setLimitToast(false), 2500);
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || "Analysis failed");
+      }
 
       setResult(data.result);
 
-      // 🔥 Usage toast animation
       setUsageToast(true);
       setTimeout(() => setUsageToast(false), 1800);
     } catch (err: any) {
@@ -77,17 +86,17 @@ export default function TextAnalysisPage() {
           <h3>Analysis Result</h3>
 
           <div className="result-grid">
-            <div>
+            <div className="result-box">
               <span>Words</span>
               <strong>{result.wordCount}</strong>
             </div>
 
-            <div>
+            <div className="result-box">
               <span>Characters</span>
               <strong>{result.characterCount}</strong>
             </div>
 
-            <div>
+            <div className="result-box">
               <span>Sentiment</span>
               <strong className={`sentiment ${result.sentiment}`}>
                 {result.sentiment}
@@ -97,15 +106,20 @@ export default function TextAnalysisPage() {
         </div>
       )}
 
-      {/* 🔔 API USAGE TOAST */}
+      {/* SUCCESS TOAST */}
       <div className={`usage-toast ${usageToast ? "show" : ""}`}>
         +1 API usage recorded
       </div>
 
-      {/* ===================== STYLES ===================== */}
+      {/* LIMIT TOAST */}
+      <div className={`limit-toast ${limitToast ? "show" : ""}`}>
+        Monthly limit exceeded. Upgrade to continue.
+      </div>
+
+      {/* STYLES */}
       <style>{`
         .page {
-          padding: 40px;
+          padding: 20px;
           color: white;
           background: #000;
           min-height: 100vh;
@@ -137,7 +151,6 @@ export default function TextAnalysisPage() {
           border-radius: 12px;
           padding: 14px;
           font-size: 14px;
-          resize: vertical;
         }
 
         textarea:focus {
@@ -154,12 +167,6 @@ export default function TextAnalysisPage() {
           border: none;
           font-weight: 600;
           cursor: pointer;
-          transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-
-        .btn:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 8px 24px rgba(34,197,94,0.25);
         }
 
         .btn.loading {
@@ -183,7 +190,7 @@ export default function TextAnalysisPage() {
           margin-top: 16px;
         }
 
-        .result-grid div {
+        .result-box {
           background: #000;
           border: 1px solid #222;
           border-radius: 12px;
@@ -191,46 +198,27 @@ export default function TextAnalysisPage() {
           text-align: center;
         }
 
-        .result-grid span {
+        .result-box span {
           display: block;
           font-size: 12px;
           color: #9ca3af;
+          margin-bottom: 6px;
         }
 
-        .result-grid strong {
-          font-size: 20px;
-          margin-top: 6px;
-          display: block;
+        .result-box strong {
+          font-size: 22px;
+          font-weight: 600;
         }
 
         .sentiment.positive { color: #22c55e; }
         .sentiment.negative { color: #ef4444; }
         .sentiment.neutral { color: #facc15; }
 
-        /* ANIMATIONS */
-        .animate-in {
-          animation: slideUp 0.35s ease;
-        }
-
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(12px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        /* TOAST */
-        .usage-toast {
+        .usage-toast,
+        .limit-toast {
           position: fixed;
           bottom: 24px;
           right: 24px;
-          background: rgba(34,197,94,0.15);
-          border: 1px solid #22c55e;
-          color: #22c55e;
           padding: 10px 16px;
           border-radius: 12px;
           font-size: 14px;
@@ -239,7 +227,20 @@ export default function TextAnalysisPage() {
           transition: all 0.35s ease;
         }
 
-        .usage-toast.show {
+        .usage-toast {
+          background: rgba(34,197,94,0.15);
+          border: 1px solid #22c55e;
+          color: #22c55e;
+        }
+
+        .limit-toast {
+          background: rgba(239,68,68,0.15);
+          border: 1px solid #ef4444;
+          color: #ef4444;
+        }
+
+        .usage-toast.show,
+        .limit-toast.show {
           opacity: 1;
           transform: translateY(0);
         }

@@ -35,6 +35,7 @@ export default async function UsagePage() {
   ========================= */
   const keys = await prisma.apiKey.findMany({
     where: { userId },
+    orderBy: { createdAt: "desc" }, // newest first
     select: {
       id: true,
       last4: true,
@@ -105,7 +106,7 @@ export default async function UsagePage() {
 
         {keysWithUsage.map((key) => {
           const keyPercent =
-            limit === Infinity ? 0 : (key.used / limit) * 100;
+            limit === Infinity ? 0 : Math.min((key.used / limit) * 100, 100);
 
           const statusText =
             keyPercent >= 100
@@ -125,18 +126,18 @@ export default async function UsagePage() {
             <div key={key.id} className="table-row">
               <span className="mono">{key.name}</span>
 
-          <div className="usage-col">
-            <span className="usage-text">
-              {key.used} / {limit === Infinity ? "∞" : limit}
-            </span>
+              <div className="usage-col">
+                <span className="usage-text">
+                  {key.used} / {limit === Infinity ? "∞" : limit}
+                </span>
 
-            <div className="row-progress">
-              <div
-                className={`row-fill ${statusColor}`}
-              />
-            </div>
-          </div>
-
+                <div className="row-progress">
+                  <div
+                    className={`row-fill ${statusColor}`}
+                    style={{ width: `${keyPercent}%` }}
+                  />
+                </div>
+              </div>
 
               <span className={`status ${statusColor}`}>
                 {statusText}
@@ -222,7 +223,7 @@ export default async function UsagePage() {
         .table-header,
         .table-row {
           display: grid;
-          grid-template-columns: 280px 1fr 120px; 
+          grid-template-columns: 280px 1fr 120px;
           padding: 14px 20px;
           align-items: center;
         }
@@ -264,11 +265,15 @@ export default async function UsagePage() {
         .bar.yellow { background: #eab308; }
         .bar.red { background: #ef4444; }
 
+        /* ✅ FIX: ROW BAR COLORS */
+        .row-fill.green { background: #22c55e; }
+        .row-fill.yellow { background: #eab308; }
+        .row-fill.red { background: #ef4444; }
+
         /* STATUS TEXT COLORS */
         .status.green { color: #22c55e; }
         .status.yellow { color: #eab308; }
         .status.red { color: #ef4444; }
-        
       `}</style>
     </div>
   );
