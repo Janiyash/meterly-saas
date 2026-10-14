@@ -1,0 +1,234 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================================
+   METERLY DESIGN SYSTEM — "Instrument"
+   A measurement / drafting-table identity: pale blueprint surface, deep
+   ink text, a single brass accent standing in for an analog meter needle.
+   Structure comes from rule lines and tick marks, not cards or shadows.
+   ========================================================================= */
+
+:root {
+  --paper: #060706;        /* page background — true near-black, no tint */
+  --surface: #0e0f0e;      /* raised panels, inputs */
+  --surface-dim: #131413;  /* recessed strips, table heads */
+  --ink: #f1f3f1;          /* primary text */
+  --ink-soft: #9a9f9a;     /* secondary text */
+  --ink-faint: #5f645f;    /* tertiary / muted labels */
+  --line: #212221;         /* standard rule */
+  --line-strong: #313331;  /* emphasised rule */
+
+  --brass: #34d399;        /* accent — meter needle */
+  --brass-deep: #10b981;
+  --brass-tint: rgba(52, 211, 153, 0.14);
+
+  --good: #34d399;         /* active / positive reading */
+  --good-tint: rgba(52, 211, 153, 0.14);
+  --bad: #f87171;          /* alerts */
+  --bad-tint: rgba(248, 113, 113, 0.12);
+
+  --radius-sm: 3px;
+  --radius-pill: 999px;
+
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-body: var(--font-manrope), Arial, sans-serif;
+  --font-mono: var(--font-mono-reading), "Courier New", monospace;
+}
+
+@theme inline {
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--paper);
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px);
+  background-size: 100% 44px;
+  background-attachment: local;
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--brass-tint);
+  color: var(--brass-deep);
+}
+
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: var(--paper); }
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--paper);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--brass); }
+
+a { color: inherit; }
+
+/* ---- tabular readouts: any numeric measurement uses mono + tabular nums */
+.reading {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* ---- shared surface: flat, hairline border, sharp geometry ---- */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+/* ---- ruled ledger list: replaces "card grid" everywhere ---- */
+.ledger { border-top: 1px solid var(--line); }
+.ledger-row {
+  border-bottom: 1px solid var(--line);
+}
+
+/* ---- tick divider: a short measured mark used between inline stats ---- */
+.tick {
+  display: inline-block;
+  width: 1px;
+  height: 12px;
+  background: var(--line-strong);
+  vertical-align: middle;
+}
+
+/* ---- buttons ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-brass {
+  background: var(--ink);
+  color: var(--paper);
+}
+.btn-brass:hover:not(:disabled) { background: var(--brass-deep); }
+
+.btn-line {
+  background: transparent;
+  border-color: var(--line-strong);
+  color: var(--ink-soft);
+}
+.btn-line:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
+
+.btn-quiet {
+  background: transparent;
+  color: var(--ink-faint);
+  height: 34px;
+  padding: 0 14px;
+  border-color: var(--line);
+}
+.btn-quiet:hover:not(:disabled) { border-color: var(--bad); color: var(--bad); }
+
+/* ---- status pill (the one place full radius is used on purpose) ---- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 11px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+.pill-good { background: var(--good-tint); color: var(--good); }
+.pill-brass { background: var(--brass-tint); color: var(--brass-deep); }
+.pill-quiet { background: var(--surface-dim); color: var(--ink-faint); }
+.pill-bad { background: var(--bad-tint); color: var(--bad); }
+.pill-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+
+/* ---- one-time entrance, used at most once per page ---- */
+.settle {
+  animation: settle 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes settle {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settle { animation: none; }
+}
+
+@keyframes needle-spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block; width: 12px; height: 12px;
+  border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff;
+  border-radius: 50%; animation: needle-spin 0.7s linear infinite;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
+
+/* ── ANIMATED / 3D REDESIGN ADD-ONS ── */
+
+.glow-text {
+  background: linear-gradient(90deg, var(--ink) 0%, var(--brass) 55%, var(--ink) 100%);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: glow-sheen 6s ease-in-out infinite;
+}
+@keyframes glow-sheen {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+}
+
+.glow-ring {
+  box-shadow: 0 0 0 1px var(--line-strong), 0 0 40px -12px rgba(52, 211, 153, 0.35);
+}
+
+.perspective {
+  perspective: 1200px;
+}
+
+.btn-glow {
+  position: relative;
+  overflow: hidden;
+}
+.btn-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60px 60px at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.25), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+.btn-glow:hover::after { opacity: 1; }
+
+.noise-veil {
+  background-image: radial-gradient(circle at 20% 20%, rgba(52,211,153,0.10), transparent 45%),
+                     radial-gradient(circle at 85% 15%, rgba(52,211,153,0.06), transparent 40%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow-text { animation: none; }
+}
