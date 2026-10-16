@@ -2,6 +2,8 @@ import NextAuth, { type AuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
+import { generateRawApiKey, encrypt } from "@/lib/api-key";
+
 
 export const authOptions: AuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -31,17 +33,18 @@ export const authOptions: AuthOptions = {
       // always tracked from their very first analysis, even if they
       // never visit the API Keys page.
       if (!user.id) return;
-      const token = `mk_default_${user.id.slice(0, 8)}_${Date.now()}`;
+      const rawKey = generateRawApiKey();
+          
       await prisma.apiKey
         .create({
           data: {
             userId: user.id,
             name: "Default key",
-            token,
-            last4: token.slice(-4),
+            encryptedKey: encrypt(rawKey),
+            last4: rawKey.slice(-4),
           },
         })
-        .catch(() => null); // never block sign-in
+        .catch(() => null);// never block sign-in
     },
   },
 };

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
+import { generateRawApiKey, encrypt } from "@/lib/api-key";
 
 function analyzeText(text: string) {
   const trimmed = text.trim();
@@ -92,20 +93,23 @@ function analyzeText(text: string) {
 /** Returns the user's first active API key, auto-creating a default one if none exists. */
 async function getOrCreateDefaultKey(userId: string) {
   const existing = await prisma.apiKey
-    .findFirst({ where: { userId, revokedAt: null }, orderBy: { createdAt: "asc" } })
+    .findFirst({
+      where: { userId, revokedAt: null },
+      orderBy: { createdAt: "asc" },
+    })
     .catch(() => null);
 
   if (existing) return existing;
 
-  // Auto-create a default key so usage is always tracked
-  const token = `mk_default_${userId.slice(0, 8)}_${Date.now()}`;
+  const rawKey = generateRawApiKey();
+
   return prisma.apiKey
     .create({
       data: {
         userId,
         name: "Default key",
-        token,
-        last4: token.slice(-4),
+        encryptedKey: encrypt(rawKey),
+        last4: rawKey.slice(-4),
       },
     })
     .catch(() => null);

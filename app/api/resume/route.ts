@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import Anthropic from "@anthropic-ai/sdk";
 import mammoth from "mammoth";
+import { generateRawApiKey, encrypt } from "@/lib/api-key";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -78,9 +79,16 @@ async function getOrCreateDefaultKey(userId: string) {
     .findFirst({ where: { userId, revokedAt: null }, orderBy: { createdAt: "asc" } })
     .catch(() => null);
   if (existing) return existing;
-  const token = `mk_default_${userId.slice(0, 8)}_${Date.now()}`;
+  const rawKey = generateRawApiKey();
   return prisma.apiKey
-    .create({ data: { userId, name: "Default key", token, last4: token.slice(-4) } })
+    .create({
+      data: {
+        userId,
+        name: "Default key",
+        encryptedKey: encrypt(rawKey),
+        last4: rawKey.slice(-4),
+      },
+    })
     .catch(() => null);
 }
 
