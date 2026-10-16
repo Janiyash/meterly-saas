@@ -185,17 +185,34 @@ export async function POST(req: NextRequest) {
   try {
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 2048,
+      max_tokens: 4096,
       messages: [{ role: "user", content }],
     });
     const text = message.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
       .map((b) => b.text)
       .join("");
+    if (message.stop_reason === "max_tokens") {
+      console.error("Resume analysis: response was cut off (max_tokens)");
+    }
     aiResult = parseJson(text);
   } catch (err) {
-    console.error("Claude analysis failed:", err);
-    return NextResponse.json({ error: "AI analysis failed. Please try again." }, { status: 500 });
+    // Full details go to Vercel Logs; the user gets a clear, safe message.
+    const status = (err as { status?: number })?.status;
+    const detail = (err as { message?: string })?.message;
+    console.error("Resume analysis failed:", { status, detail, err });
+
+    let msg = "Analysis failed. Please try again.";
+    if (status === 401) msg = "Analysis service is not configured correctly (invalid API key).";
+    else if (status === 400 && /credit|balance/i.test(detail ?? ""))
+      msg = "Analysis service is temporarily unavailable (billing).";
+    else if (status === 404) msg = "Analysis service is misconfigured (model not found).";
+    else if (status === 429) msg = "Too many requests right now. Please wait a minute and retry.";
+    else if (status === 529 || (status && status >= 500))
+      msg = "The analysis service is busy. Please try again in a moment.";
+    else if (err instanceof SyntaxError || /No JSON/.test(detail ?? ""))
+      msg = "Could not read the analysis result. Please try again.";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 
   aiResult.keywords ??= [];

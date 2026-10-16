@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Result {
@@ -70,7 +70,24 @@ export default function ResumeClient({ history }: { history: HistoryItem[] }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const STEPS = [
+    "Uploading your resume",
+    "Extracting text and structure",
+    "Checking sections and keywords",
+    "Calculating your ATS score",
+    "Preparing suggestions",
+  ];
+
+  useEffect(() => {
+    if (!loading) return;
+    setStep(0);
+    const t = setInterval(() => setStep((s) => Math.min(s + 1, STEPS.length - 1)), 3500);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   async function analyze() {
     if (!file) return;
@@ -81,8 +98,14 @@ export default function ResumeClient({ history }: { history: HistoryItem[] }) {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/resume", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Analysis failed");
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        // server returned non-JSON (e.g. platform timeout page)
+        throw new Error("The server took too long to respond. Please try again.");
+      }
+      if (!res.ok) throw new Error(data?.error ?? "Analysis failed");
       setResult(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -128,6 +151,12 @@ export default function ResumeClient({ history }: { history: HistoryItem[] }) {
 
         .rp-error { background: var(--bad-tint); border: 1px solid var(--bad); padding: 12px 16px; font-size: 13px; color: var(--bad); margin-bottom: 16px; border-radius: var(--radius-sm); }
 
+        .rp-steps { padding: 24px 0; display: flex; flex-direction: column; gap: 12px; max-width: 360px; }
+        .rp-step { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--ink-faint); opacity: 0.5; transition: opacity .3s; }
+        .rp-step.active, .rp-step.done { opacity: 1; }
+        .rp-step.active { color: var(--ink); }
+        .rp-step.done { color: var(--brass); }
+        .rp-step-dot { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 50%; font-size: 11px; flex-shrink: 0; }
         .rp-loading { padding: 32px 0; text-align: center; color: var(--ink-faint); font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 10px; }
 
         /* results */
@@ -264,9 +293,18 @@ export default function ResumeClient({ history }: { history: HistoryItem[] }) {
       )}
 
       {loading && (
-        <div className="rp-loading">
-          <span className="spinner" />
-          Claude is reading your resume…
+        <div className="rp-steps" role="status" aria-live="polite">
+          {STEPS.map((label, i) => (
+            <div
+              key={label}
+              className={`rp-step ${i < step ? "done" : i === step ? "active" : ""}`}
+            >
+              <span className="rp-step-dot">
+                {i < step ? "✓" : i === step ? <span className="spinner" /> : ""}
+              </span>
+              {label}
+            </div>
+          ))}
         </div>
       )}
 
