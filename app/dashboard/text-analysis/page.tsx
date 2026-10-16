@@ -4,11 +4,12 @@ import { useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { StaggerGroup, StaggerItem } from "@/components/motion/Stagger";
 import { useAnalysis } from "@/components/text-analysis/useAnalysis";
+import ApiKeyRequiredModal from "@/components/ui/ApiKeyRequiredModal";
 
 export default function TextAnalysisPage() {
   const {
     text, setText, result, loading, error, tracked, requestCount,
-    runAnalysis, clearAll, wordCount, charCount,
+    runAnalysis, clearAll, wordCount, charCount, noKey, closeNoKey,
   } = useAnalysis();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -221,6 +222,7 @@ export default function TextAnalysisPage() {
           </p>
         </div>
       )}
+      <ApiKeyRequiredModal open={noKey} onClose={closeNoKey} />
     </div>
   );
 }

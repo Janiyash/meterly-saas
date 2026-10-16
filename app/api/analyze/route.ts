@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
-import { generateRawApiKey, encrypt } from "@/lib/api-key";
+import { ensureDefaultKey, getActiveKey, noKeyResponse } from "@/lib/default-key";
 
 function analyzeText(text: string) {
   const trimmed = text.trim();
@@ -90,31 +90,6 @@ function analyzeText(text: string) {
   };
 }
 
-/** Returns the user's first active API key, auto-creating a default one if none exists. */
-async function getOrCreateDefaultKey(userId: string) {
-  const existing = await prisma.apiKey
-    .findFirst({
-      where: { userId, revokedAt: null },
-      orderBy: { createdAt: "asc" },
-    })
-    .catch(() => null);
-
-  if (existing) return existing;
-
-  const rawKey = generateRawApiKey();
-
-  return prisma.apiKey
-    .create({
-      data: {
-        userId,
-        name: "Default key",
-        encryptedKey: encrypt(rawKey),
-        last4: rawKey.slice(-4),
-      },
-    })
-    .catch(() => null);
-}
-
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -128,6 +103,11 @@ export async function POST(req: NextRequest) {
   if (!text.trim()) {
     return NextResponse.json({ error: "No text provided" }, { status: 400 });
   }
+
+  // An active API key is required to run an analysis
+  await ensureDefaultKey(userId);
+  const apiKey = await getActiveKey(userId);
+  if (!apiKey) return noKeyResponse();
 
   const subscription = await prisma.subscription
     .findUnique({ where: { userId }, include: { plan: true } })
@@ -155,10 +135,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Always get or create a key — usage is always recorded now
-  const apiKey = await getOrCreateDefaultKey(userId);
-
-  if (apiKey) {
+  {
+    // record usage against the user's active key
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     await prisma.usage

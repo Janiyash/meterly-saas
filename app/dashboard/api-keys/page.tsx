@@ -1,12 +1,16 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { ensureDefaultKey } from "@/lib/default-key";
 import ApiKeysClientB from "./ApiKeysClient";
 import ApiKeysClient from "./ApiKeysClient";
 
 export default async function ApiKeysPage() {
   const session = await getServerSession(authOptions);
   const userId = session!.user!.id as string;
+
+  // make sure the user has their free default key
+  await ensureDefaultKey(userId);
 
   const monthStart = new Date();
   monthStart.setDate(1);

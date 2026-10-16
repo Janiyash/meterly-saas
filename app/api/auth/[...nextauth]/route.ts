@@ -2,7 +2,7 @@ import NextAuth, { type AuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
-import { generateRawApiKey, encrypt } from "@/lib/api-key";
+import { ensureDefaultKey } from "@/lib/default-key";
 
 
 export const authOptions: AuthOptions = {
@@ -28,23 +28,14 @@ export const authOptions: AuthOptions = {
     },
   },
   events: {
+    // Every new user gets one free default API key.
     async createUser({ user }) {
-      // Auto-create a default API key for every new user so usage is
-      // always tracked from their very first analysis, even if they
-      // never visit the API Keys page.
-      if (!user.id) return;
-      const rawKey = generateRawApiKey();
-          
-      await prisma.apiKey
-        .create({
-          data: {
-            userId: user.id,
-            name: "Default key",
-            encryptedKey: encrypt(rawKey),
-            last4: rawKey.slice(-4),
-          },
-        })
-        .catch(() => null);// never block sign-in
+      if (user.id) await ensureDefaultKey(user.id);
+    },
+    // Also covers older accounts that never got a key (runs on every sign-in,
+    // but only creates a key if the user has never had one).
+    async signIn({ user }) {
+      if (user.id) await ensureDefaultKey(user.id);
     },
   },
 };

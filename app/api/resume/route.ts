@@ -4,7 +4,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import mammoth from "mammoth";
-import { generateRawApiKey, encrypt } from "@/lib/api-key";
+import { ensureDefaultKey, getActiveKey, noKeyResponse } from "@/lib/default-key";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -75,35 +75,11 @@ async function callGemini(parts: unknown[]): Promise<string> {
   throw lastErr;
 }
 
-const PROMPT = `You are a senior technical recruiter and ATS expert. Analyze the attached resume and return ONLY one valid JSON object. No markdown, no code fences, no commentary.
-
-RULES
-- Base everything strictly on what is written in the resume. Never invent skills, jobs, numbers or achievements.
-- If the document is not a resume/CV, return {"isResume": false} and nothing else.
-- Be specific: quote or reference actual content (job names, projects, skills) in suggestions.
-- Do not give generic advice like "improve formatting" unless you say exactly what is wrong.
-
-SCORING (total 100, add up these parts):
-- Structure and sections (20): clear standard headings, logical order, nothing important missing
-- Contact and ATS readability (15): email, phone, links present; no tables/columns/graphics that break parsing; consistent dates
-- Experience and project quality (25): action verbs, measurable results (numbers, %, scale), relevance, clear role and impact
-- Skills and keywords (20): relevant technical skills, tools and technologies, grouped clearly, matching industry terms
-- Education, certifications, achievements (10)
-- Clarity and length (10): concise bullets, no grammar errors, 1-2 pages worth of content
-Score strictly. Most real resumes land between 45 and 80. Give 85+ only if all areas are strong, with quantified results. Give below 40 only for very thin or badly structured resumes.
+const PROMPT = `You are an expert ATS (Applicant Tracking System) resume analyzer. Analyze the resume and return ONLY a valid JSON object with no extra text, no markdown, no explanation.
 
 Return this exact JSON structure:
 {
-  "isResume": true,
-  "atsScore": <integer 0-100, sum of the parts above>,
-  "scoreBreakdown": {
-    "structure": <0-20>,
-    "readability": <0-15>,
-    "experience": <0-25>,
-    "skills": <0-20>,
-    "education": <0-10>,
-    "clarity": <0-10>
-  },
+  "atsScore": <number 0-100>,
   "sections": {
     "contact": <true/false>,
     "summary": <true/false>,
@@ -114,15 +90,21 @@ Return this exact JSON structure:
     "certifications": <true/false>,
     "achievements": <true/false>
   },
-  "keywords": [<up to 25 technical skills, tools, languages and frameworks actually found, no duplicates>],
-  "missingKeywords": [<up to 8 common keywords for the best-fit job titles that are absent>],
-  "suggestions": [<4-6 items, each one sentence, starting with the section name, e.g. "Experience: Rewrite 'Worked on billing app' to show impact, like '...'" , ordered by importance>],
-  "strengths": [<2-4 specific things done well, referencing real content>],
+  "keywords": [<technical skills, tools, languages found>],
+  "suggestions": [<3-6 specific actionable suggestions>],
+  "strengths": [<2-4 things the resume does well>],
   "jobTitles": [<2-3 job titles this resume suits best>],
-  "experienceLevel": "<Junior|Mid|Senior|Lead|Executive>"
+  "experienceLevel": "<Junior|Mid|Senior|Lead|Executive>",
+  "wordCount": <number>
 }
 
-Before answering, double check that the breakdown numbers add up to atsScore and that the JSON is valid.`;
+ATS score criteria:
+- 80-100: Excellent, well structured, keyword rich
+- 60-79: Good, minor improvements needed
+- 40-59: Average, significant gaps
+- 0-39: Poor, major restructuring needed
+
+Be specific. Analyze the actual content, not generic advice.`;
 
 type AiResult = {
   atsScore: number;
@@ -155,30 +137,17 @@ function parseJson(text: string): AiResult {
   return JSON.parse(clean.slice(start, end + 1));
 }
 
-async function getOrCreateDefaultKey(userId: string) {
-  const existing = await prisma.apiKey
-    .findFirst({ where: { userId, revokedAt: null }, orderBy: { createdAt: "asc" } })
-    .catch(() => null);
-  if (existing) return existing;
-  const rawKey = generateRawApiKey();
-  return prisma.apiKey
-    .create({
-      data: {
-        userId,
-        name: "Default key",
-        encryptedKey: encrypt(rawKey),
-        last4: rawKey.slice(-4),
-      },
-    })
-    .catch(() => null);
-}
-
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const userId = session.user.id as string;
+
+  // An active API key is required to run an analysis
+  await ensureDefaultKey(userId);
+  const apiKey = await getActiveKey(userId);
+  if (!apiKey) return noKeyResponse();
 
   if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json(
@@ -307,8 +276,7 @@ export async function POST(req: NextRequest) {
       return null;
     });
 
-  const apiKey = await getOrCreateDefaultKey(userId);
-  if (apiKey) {
+  {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     await prisma.usage

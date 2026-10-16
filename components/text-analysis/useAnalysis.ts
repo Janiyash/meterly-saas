@@ -25,6 +25,7 @@ export function useAnalysis() {
   const [error, setError] = useState<string | null>(null);
   const [tracked, setTracked] = useState(false);
   const [requestCount, setRequestCount] = useState(0);
+  const [noKey, setNoKey] = useState(false);
 
   async function runAnalysis() {
     if (!text.trim()) return;
@@ -41,6 +42,10 @@ export function useAnalysis() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (data.code === "NO_API_KEY") {
+          setNoKey(true);
+          return;
+        }
         if (res.status === 429) {
           setError(`Quota exceeded — ${data.used}/${data.limit} requests used this month on the ${data.plan} plan.`);
         } else {
@@ -76,6 +81,7 @@ export function useAnalysis() {
 
   return {
     text, setText, result, loading, error, tracked, requestCount,
+    noKey, closeNoKey: () => setNoKey(false),
     runAnalysis, clearAll, backToEdit, wordCount, charCount,
   };
 }

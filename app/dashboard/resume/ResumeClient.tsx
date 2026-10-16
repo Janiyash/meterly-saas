@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import ApiKeyRequiredModal from "@/components/ui/ApiKeyRequiredModal";
 
 interface Result {
   atsScore: number;
@@ -71,6 +72,7 @@ export default function ResumeClient({ history }: { history: HistoryItem[] }) {
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
+  const [noKey, setNoKey] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const STEPS = [
@@ -104,6 +106,10 @@ export default function ResumeClient({ history }: { history: HistoryItem[] }) {
       } catch {
         // server returned non-JSON (e.g. platform timeout page)
         throw new Error("The server took too long to respond. Please try again.");
+      }
+      if (data?.code === "NO_API_KEY") {
+        setNoKey(true);
+        return;
       }
       if (!res.ok) throw new Error(data?.error ?? "Analysis failed");
       setResult(data);
@@ -429,6 +435,7 @@ export default function ResumeClient({ history }: { history: HistoryItem[] }) {
           ))}
         </div>
       )}
+      <ApiKeyRequiredModal open={noKey} onClose={() => setNoKey(false)} />
     </div>
   );
 }
