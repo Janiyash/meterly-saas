@@ -29,7 +29,16 @@ export async function POST() {
       {
         error:
           "DEBUG: " +
-          (err instanceof Error ? err.message : String(err)).slice(0, 600),
+          (err instanceof Error ? err.message : String(err)).slice(0, 400) +
+          " | DB host: " +
+          (() => {
+            try {
+              const u = new URL(process.env.DATABASE_URL || "");
+              return u.host + u.pathname + (u.searchParams.get("schema") ? " schema=" + u.searchParams.get("schema") : "");
+            } catch {
+              return "DATABASE_URL missing/invalid";
+            }
+          })(),
       },
       { status: 500 }
     );
