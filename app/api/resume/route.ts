@@ -3,14 +3,47 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
-import Anthropic from "@anthropic-ai/sdk";
 import mammoth from "mammoth";
 import { generateRawApiKey, encrypt } from "@/lib/api-key";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Free AI provider: Google Gemini (key from https://aistudio.google.com/apikey)
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
+
+async function callGemini(parts: unknown[]): Promise<string> {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": process.env.GEMINI_API_KEY as string,
+      },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          maxOutputTokens: 4096,
+          temperature: 0.2,
+        },
+      }),
+    }
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    const e = new Error(`Gemini ${res.status}: ${body.slice(0, 500)}`) as Error & { status?: number };
+    e.status = res.status;
+    throw e;
+  }
+  const data = await res.json();
+  const text = (data?.candidates?.[0]?.content?.parts ?? [])
+    .map((p: { text?: string }) => p.text ?? "")
+    .join("");
+  if (!text) throw new Error("Empty response from Gemini");
+  return text;
+}
 
 const PROMPT = `You are an expert ATS (Applicant Tracking System) resume analyzer. Analyze the resume and return ONLY a valid JSON object with no extra text, no markdown, no explanation.
 
@@ -99,9 +132,9 @@ export async function POST(req: NextRequest) {
   }
   const userId = session.user.id as string;
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json(
-      { error: "Server is missing ANTHROPIC_API_KEY. Add it to .env and restart." },
+      { error: "Server is missing GEMINI_API_KEY. Add it to .env and restart." },
       { status: 500 }
     );
   }
@@ -148,17 +181,14 @@ export async function POST(req: NextRequest) {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  let content: Anthropic.MessageParam["content"];
+  let parts: unknown[];
   let rawText = "";
 
   try {
     if (kind === "pdf") {
-      content = [
-        {
-          type: "document",
-          source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") },
-        },
-        { type: "text", text: PROMPT },
+      parts = [
+        { inlineData: { mimeType: "application/pdf", data: buffer.toString("base64") } },
+        { text: PROMPT },
       ];
       rawText = "[PDF analyzed directly]";
     } else {
@@ -173,7 +203,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      content = `${PROMPT}\n\nResume text:\n"""\n${rawText.slice(0, 12000)}\n"""`;
+      parts = [{ text: `${PROMPT}\n\nResume text:\n"""\n${rawText.slice(0, 12000)}\n"""` }];
     }
   } catch (err) {
     console.error("File read failed:", err);
@@ -183,18 +213,7 @@ export async function POST(req: NextRequest) {
   // Claude analysis
   let aiResult: AiResult;
   try {
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      messages: [{ role: "user", content }],
-    });
-    const text = message.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-    if (message.stop_reason === "max_tokens") {
-      console.error("Resume analysis: response was cut off (max_tokens)");
-    }
+    const text = await callGemini(parts);
     aiResult = parseJson(text);
   } catch (err) {
     // Full details go to Vercel Logs; the user gets a clear, safe message.
@@ -203,14 +222,13 @@ export async function POST(req: NextRequest) {
     console.error("Resume analysis failed:", { status, detail, err });
 
     let msg = "Analysis failed. Please try again.";
-    if (status === 401) msg = "Analysis service is not configured correctly (invalid API key).";
-    else if (status === 400 && /credit|balance/i.test(detail ?? ""))
-      msg = "Analysis service is temporarily unavailable (billing).";
+    if (status === 401 || status === 403 || /API key not valid|API_KEY_INVALID/i.test(detail ?? ""))
+      msg = "Analysis service is not configured correctly (invalid API key).";
     else if (status === 404) msg = "Analysis service is misconfigured (model not found).";
-    else if (status === 429) msg = "Too many requests right now. Please wait a minute and retry.";
-    else if (status === 529 || (status && status >= 500))
-      msg = "The analysis service is busy. Please try again in a moment.";
-    else if (err instanceof SyntaxError || /No JSON/.test(detail ?? ""))
+    else if (status === 429)
+      msg = "Free AI limit reached for now. Please wait a minute (or until tomorrow) and retry.";
+    else if (status && status >= 500) msg = "The analysis service is busy. Please try again in a moment.";
+    else if (err instanceof SyntaxError || /No JSON|Empty response/.test(detail ?? ""))
       msg = "Could not read the analysis result. Please try again.";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
