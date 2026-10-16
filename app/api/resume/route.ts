@@ -75,11 +75,35 @@ async function callGemini(parts: unknown[]): Promise<string> {
   throw lastErr;
 }
 
-const PROMPT = `You are an expert ATS (Applicant Tracking System) resume analyzer. Analyze the resume and return ONLY a valid JSON object with no extra text, no markdown, no explanation.
+const PROMPT = `You are a senior technical recruiter and ATS expert. Analyze the attached resume and return ONLY one valid JSON object. No markdown, no code fences, no commentary.
+
+RULES
+- Base everything strictly on what is written in the resume. Never invent skills, jobs, numbers or achievements.
+- If the document is not a resume/CV, return {"isResume": false} and nothing else.
+- Be specific: quote or reference actual content (job names, projects, skills) in suggestions.
+- Do not give generic advice like "improve formatting" unless you say exactly what is wrong.
+
+SCORING (total 100, add up these parts):
+- Structure and sections (20): clear standard headings, logical order, nothing important missing
+- Contact and ATS readability (15): email, phone, links present; no tables/columns/graphics that break parsing; consistent dates
+- Experience and project quality (25): action verbs, measurable results (numbers, %, scale), relevance, clear role and impact
+- Skills and keywords (20): relevant technical skills, tools and technologies, grouped clearly, matching industry terms
+- Education, certifications, achievements (10)
+- Clarity and length (10): concise bullets, no grammar errors, 1-2 pages worth of content
+Score strictly. Most real resumes land between 45 and 80. Give 85+ only if all areas are strong, with quantified results. Give below 40 only for very thin or badly structured resumes.
 
 Return this exact JSON structure:
 {
-  "atsScore": <number 0-100>,
+  "isResume": true,
+  "atsScore": <integer 0-100, sum of the parts above>,
+  "scoreBreakdown": {
+    "structure": <0-20>,
+    "readability": <0-15>,
+    "experience": <0-25>,
+    "skills": <0-20>,
+    "education": <0-10>,
+    "clarity": <0-10>
+  },
   "sections": {
     "contact": <true/false>,
     "summary": <true/false>,
@@ -90,21 +114,15 @@ Return this exact JSON structure:
     "certifications": <true/false>,
     "achievements": <true/false>
   },
-  "keywords": [<technical skills, tools, languages found>],
-  "suggestions": [<3-6 specific actionable suggestions>],
-  "strengths": [<2-4 things the resume does well>],
+  "keywords": [<up to 25 technical skills, tools, languages and frameworks actually found, no duplicates>],
+  "missingKeywords": [<up to 8 common keywords for the best-fit job titles that are absent>],
+  "suggestions": [<4-6 items, each one sentence, starting with the section name, e.g. "Experience: Rewrite 'Worked on billing app' to show impact, like '...'" , ordered by importance>],
+  "strengths": [<2-4 specific things done well, referencing real content>],
   "jobTitles": [<2-3 job titles this resume suits best>],
-  "experienceLevel": "<Junior|Mid|Senior|Lead|Executive>",
-  "wordCount": <number>
+  "experienceLevel": "<Junior|Mid|Senior|Lead|Executive>"
 }
 
-ATS score criteria:
-- 80-100: Excellent, well structured, keyword rich
-- 60-79: Good, minor improvements needed
-- 40-59: Average, significant gaps
-- 0-39: Poor, major restructuring needed
-
-Be specific. Analyze the actual content, not generic advice.`;
+Before answering, double check that the breakdown numbers add up to atsScore and that the JSON is valid.`;
 
 type AiResult = {
   atsScore: number;
