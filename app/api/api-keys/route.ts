@@ -11,13 +11,22 @@ export async function POST() {
   }
 
   const userId = session.user.id as string;
-  const rawKey = generateRawApiKey();
-  const encryptedKey = encrypt(rawKey);
-  const last4 = rawKey.slice(-4);
 
-  const record = await prisma.apiKey.create({
-    data: { userId, encryptedKey, last4 },
-  });
+  try {
+    const rawKey = generateRawApiKey();
+    const encryptedKey = encrypt(rawKey);
+    const last4 = rawKey.slice(-4);
 
-  return NextResponse.json({ id: record.id, key: rawKey, last4 });
+    const record = await prisma.apiKey.create({
+      data: { userId, encryptedKey, last4 },
+    });
+
+    return NextResponse.json({ id: record.id, key: rawKey, last4 });
+  } catch (err) {
+    console.error("POST /api/api-keys failed:", err);
+    return NextResponse.json(
+      { error: "Could not generate API key. Please try again later." },
+      { status: 500 }
+    );
+  }
 }
