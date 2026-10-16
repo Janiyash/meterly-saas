@@ -25,7 +25,12 @@ export async function POST() {
   } catch (err) {
     console.error("POST /api/api-keys failed:", err);
     return NextResponse.json(
-      { error: "Could not generate API key. Please try again later." },
+      // TEMPORARY DEBUG: remove after the issue is found
+      {
+        error:
+          "DEBUG: " +
+          (err instanceof Error ? err.message : String(err)).slice(0, 600),
+      },
       { status: 500 }
     );
   }
