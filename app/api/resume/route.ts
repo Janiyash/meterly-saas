@@ -10,11 +10,19 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // Free AI provider: Google Gemini (key from https://aistudio.google.com/apikey)
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
+// Primary model first, then a lighter backup model if the primary is busy/unavailable.
+const GEMINI_MODELS = [
+  process.env.GEMINI_MODEL || "gemini-flash-latest",
+  process.env.GEMINI_FALLBACK_MODEL || "gemini-flash-lite-latest",
+];
 
-async function callGemini(parts: unknown[]): Promise<string> {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+type HttpError = Error & { status?: number };
+
+async function callGeminiOnce(model: string, parts: unknown[]): Promise<string> {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: "POST",
       headers: {
@@ -33,7 +41,7 @@ async function callGemini(parts: unknown[]): Promise<string> {
   );
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    const e = new Error(`Gemini ${res.status}: ${body.slice(0, 500)}`) as Error & { status?: number };
+    const e = new Error(`Gemini ${model} ${res.status}: ${body.slice(0, 500)}`) as HttpError;
     e.status = res.status;
     throw e;
   }
@@ -43,6 +51,28 @@ async function callGemini(parts: unknown[]): Promise<string> {
     .join("");
   if (!text) throw new Error("Empty response from Gemini");
   return text;
+}
+
+async function callGemini(parts: unknown[]): Promise<string> {
+  let lastErr: unknown;
+  for (const model of GEMINI_MODELS) {
+    // up to 3 tries per model for temporary overload (500/503), with short waits
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await callGeminiOnce(model, parts);
+      } catch (err) {
+        lastErr = err;
+        const status = (err as HttpError).status;
+        console.error(`Gemini attempt failed (${model}, try ${attempt + 1}):`, (err as Error).message);
+        if (status === 500 || status === 503) {
+          await sleep(1500 * (attempt + 1));
+          continue; // retry same model
+        }
+        break; // 429 / 404 / 400 etc: move on to the next model
+      }
+    }
+  }
+  throw lastErr;
 }
 
 const PROMPT = `You are an expert ATS (Applicant Tracking System) resume analyzer. Analyze the resume and return ONLY a valid JSON object with no extra text, no markdown, no explanation.
