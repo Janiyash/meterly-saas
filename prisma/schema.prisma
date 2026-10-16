@@ -107,6 +107,7 @@ model Subscription {
 // ✅ USAGE TRACKING
 //////////////////////////
 
+
 model ApiKey {
   id           String    @id @default(cuid())
   userId       String
