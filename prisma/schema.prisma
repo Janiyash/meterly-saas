@@ -14,16 +14,16 @@ enum Role {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  image         String?
-  emailVerified DateTime?
-  role          Role      @default(USER)
-  createdAt     DateTime  @default(now())
+  id             String           @id @default(cuid())
+  name           String?
+  email          String?          @unique
+  image          String?
+  emailVerified  DateTime?
+  role           Role             @default(USER)
+  createdAt      DateTime         @default(now())
   resumeAnalyses ResumeAnalysis[]
 
-  stripeCustomerId String? @unique   // ✅ STRIPE
+  stripeCustomerId String? @unique // ✅ STRIPE
 
   usages       Usage[]
   apiKeys      ApiKey[]
@@ -35,7 +35,6 @@ model User {
   analyses     Analysis[]
   payments     Payment[]
 }
-
 
 model Account {
   id                String  @id @default(uuid())
@@ -84,11 +83,10 @@ model Plan {
   interval     String
   requestLimit Int
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt   // ✅ REQUIRED (added)
+  updatedAt    DateTime @updatedAt // ✅ REQUIRED (added)
 
   subscriptions Subscription[]
 }
-
 
 model Subscription {
   id        String   @id @default(cuid())
@@ -97,14 +95,13 @@ model Subscription {
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now())
 
-  stripeSubscriptionId String?  @unique   // ✅ STRIPE
-  currentPeriodEnd     DateTime?           // ✅ STRIPE
-  cancelAtPeriodEnd    Boolean  @default(false) // ✅ STRIPE
+  stripeSubscriptionId String?   @unique // ✅ STRIPE
+  currentPeriodEnd     DateTime? // ✅ STRIPE
+  cancelAtPeriodEnd    Boolean   @default(false) // ✅ STRIPE
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan Plan @relation(fields: [planId], references: [id])
 }
-
 
 //////////////////////////
 // ✅ USAGE TRACKING
@@ -116,6 +113,7 @@ model ApiKey {
   encryptedKey String
   last4        String
   revokedAt    DateTime?
+  name         String?
 
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   usages    Usage[]
@@ -166,16 +164,17 @@ model UsageEvent {
 model Analysis {
   id          String   @id @default(cuid())
   userId      String
-  preview     String   // first ~120 chars, used only in the list view
-  fullText    String   // the complete submitted text, shown on the detail page
+  preview     String // first ~120 chars, used only in the list view
+  fullText    String // the complete submitted text, shown on the detail page
   wordCount   Int
   fleschScore Int
   readability String
-  result      Json     // full AnalysisResult payload, so the history page can re-render it
+  result      Json // full AnalysisResult payload, so the history page can re-render it
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
 //////////////////////////
 // ✅ RESUME HISTORY
 //////////////////////////
@@ -202,7 +201,7 @@ model Payment {
   id                String   @id @default(cuid())
   userId            String
   plan              String
-  amount            Int      // in paise
+  amount            Int // in paise
   currency          String   @default("INR")
   status            String   @default("SUCCESS")
   razorpayOrderId   String
